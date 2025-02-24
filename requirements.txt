@@ -1,0 +1,5 @@
+openai
+toolz
+Pillow
+requests
+python-pptx
