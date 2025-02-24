@@ -1,5 +1,5 @@
 # translate-pptx
-[![PyPI](https://img.shields.io/pypi/v/git-bob.svg?color=green)](https://pypi.org/project/translate-pptx)
+[![PyPI](https://img.shields.io/pypi/v/translate-pptx.svg?color=green)](https://pypi.org/project/translate-pptx)
 [![License](https://img.shields.io/pypi/l/translate-pptx.svg?color=green)](https://github.com/haesleinhuepf/translate-pptx/raw/main/LICENSE)
 
 translate-pptx is a command line tool that translates PowerPoint PPTX files from one language to another.
