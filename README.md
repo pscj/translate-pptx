@@ -40,6 +40,8 @@ translate-pptx can be installed using pip:
 pip install translate-pptx
 ```
 
+Please note that you must set an `OPENAI_API_KEY` environment variable to use this tool.
+
 ## Contributing
 
 Feedback and contributions are welcome! Just open an issue and let's discuss before you send a pull request.
