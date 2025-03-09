@@ -1,6 +1,10 @@
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
 def prompt_openai(message: str, model="gpt-4o-2024-11-20"):
     """A prompt helper function that sends a message to openAI
     and returns only the text response.
+    Results are cached to optimize for repeated queries.
     """
     import openai
 
