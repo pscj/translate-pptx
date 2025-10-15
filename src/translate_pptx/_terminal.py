@@ -2,14 +2,15 @@ def command_line_interface(argv=None):
     """Command-line interface for the translate_pptx package."""
     import sys
     import os
+    import asyncio
     from dotenv import load_dotenv
     
     # Load environment variables from .env file
     load_dotenv()
 
     from ._pptx import extract_text_from_slides, replace_text_in_slides
-    from ._translation import translate_data_structure_of_texts_recursive
-    from ._endpoints import prompt_openai, prompt_nop, prompt_deepseek
+    from ._translation import translate_slides_async
+    from ._endpoints import prompt_deepseek_async
 
     # Read config from terminal arguments
     if argv is None:
@@ -34,23 +35,27 @@ def command_line_interface(argv=None):
     else:
         llm_name = "deepseek"
 
-    if llm_name == "nop":
-        prompt_function = prompt_nop
-    elif "gpt-4o" in llm_name:
-        prompt_function = prompt_openai
-    elif "deepseek" in llm_name.lower():
-        prompt_function = prompt_deepseek
-    else:
-        raise ValueError(f"Unknown model: {llm_name}")
+    # Currently only support async deepseek
+    if "deepseek" not in llm_name.lower():
+        raise ValueError(f"Currently only 'deepseek' model is supported for async translation")
 
     # Extract text
     texts = extract_text_from_slides(input_pptx)
+    
+    print(f"\n{'='*60}")
+    print(f"Extracted {len(texts)} slides from {input_pptx}")
+    print(f"{'='*60}\n")
 
-    # Translate text
-    translated_texts = translate_data_structure_of_texts_recursive(texts, prompt_function, target_language)
-    print("Translated text:")
-    print(translated_texts)
+    # Translate text asynchronously (one request per slide)
+    translated_texts = asyncio.run(translate_slides_async(texts, prompt_deepseek_async, target_language))
+    
+    print("\n" + "="*60)
+    print("Writing translated content to output file...")
+    print("="*60 + "\n")
+    
     # Replace text
     replace_text_in_slides(input_pptx, translated_texts, output_pptx, target_language)
 
-    print(f"Translated presentation saved to {output_pptx}")
+    print(f"\n{'='*60}")
+    print(f"SUCCESS: Translated presentation saved to {output_pptx}")
+    print(f"{'='*60}\n")

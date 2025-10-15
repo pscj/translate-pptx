@@ -17,7 +17,7 @@ def prompt_openai(message: str, model="gpt-4o-2024-11-20"):
     )
     return response.choices[0].message.content
 
-def prompt_deepseek(message: str, model="deepseek-ai/DeepSeek-V3.2-Exp"):
+def prompt_deepseek(message: str, model="Pro/deepseek-ai/DeepSeek-V3.1"):
     """A prompt helper function that sends a message to openAI
     and returns only the text response.
     Results are cached to optimize for repeated queries.
@@ -55,7 +55,7 @@ def prompt_deepseek(message: str, model="deepseek-ai/DeepSeek-V3.2-Exp"):
     start_time = time.time()
     print(f"[DeepSeek API] Sending request...")
     
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(url, json=payload, headers=headers, timeout=600)
     
     elapsed_time = time.time() - start_time
     print(f"[DeepSeek API] Response received in {elapsed_time:.2f} seconds")
@@ -72,6 +72,61 @@ def prompt_deepseek(message: str, model="deepseek-ai/DeepSeek-V3.2-Exp"):
     print(f"{'='*60}\n")
     
     return content
+
+async def prompt_deepseek_async(message: str, model="Pro/deepseek-ai/DeepSeek-V3.1"):
+    """Async version of prompt_deepseek for concurrent API calls."""
+    import aiohttp
+    import os
+    import time
+    
+    url = "https://api.siliconflow.cn/v1/chat/completions"
+    api_key = os.getenv("SILICONFLOW_API_KEY")
+    
+    if not api_key:
+        raise ValueError("SILICONFLOW_API_KEY environment variable is not set")
+
+    print(f"\n{'='*60}")
+    print(f"[DeepSeek API Async] Calling model: {model}")
+    print(f"[DeepSeek API Async] Message length: {len(message)} characters")
+    print(f"{'='*60}")
+    
+    payload = {
+        "model": model,
+        "enable_thinking": True,
+        "messages": [
+            {
+                "role": "user",
+                "content": message
+            }
+        ]
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    start_time = time.time()
+    print(f"[DeepSeek API Async] Sending request...")
+    
+    timeout = aiohttp.ClientTimeout(total=600)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.post(url, json=payload, headers=headers) as response:
+            elapsed_time = time.time() - start_time
+            print(f"[DeepSeek API Async] Response received in {elapsed_time:.2f} seconds")
+            print(f"[DeepSeek API Async] Status code: {response.status}")
+            
+            if response.status != 200:
+                error_text = await response.text()
+                print(f"[DeepSeek API Async] Error response: {error_text}")
+                raise Exception(f"API request failed with status {response.status}: {error_text}")
+            
+            response_data = await response.json()
+            content = response_data["choices"][0]["message"]["content"]
+            
+            print(f"[DeepSeek API Async] Response length: {len(content)} characters")
+            print(f"{'='*60}\n")
+            
+            return content
 
 def prompt_nop(message:str):
     """A prompt helper function that does nothing but returns the contained json. This function is useful for testing."""

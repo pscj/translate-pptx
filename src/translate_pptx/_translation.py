@@ -1,5 +1,85 @@
 
 
+import asyncio
+import json
+from typing import List, Callable
+from ._utilities import remove_outer_markdown
+
+
+async def translate_slide_async(slide_data: List, slide_index: int, prompt_function_async: Callable, target_language: str):
+    """Translate a single slide asynchronously."""
+    slide_json = json.dumps(slide_data, ensure_ascii=False, indent=2)
+    
+    print(f"\n[Slide {slide_index}] Starting translation...")
+    print(f"[Slide {slide_index}] Data structure: {len(slide_data)} shapes")
+    
+    prompt = f"""Translate the following JSON array to {target_language}.
+
+CRITICAL REQUIREMENTS:
+1. You MUST preserve the EXACT JSON structure - same number of arrays, same nesting levels, SAME ORDER
+2. Translate ONLY the text content, NOT the structure
+3. DO NOT reorder, sort, or rearrange any elements - keep the EXACT same sequence
+4. The first string in the original MUST be the first string in the translation
+5. The last string in the original MUST be the last string in the translation
+6. Translate ALL text including company names, but keep English names/abbreviations unchanged (e.g., "PingAn", "MSH", "UHC", "Aon")
+7. PRESERVE ALL line breaks (\\n), spaces, and empty strings EXACTLY as they appear in the original
+8. If a string contains \\n (newline), the translated string MUST also contain \\n at the same positions
+9. Return ONLY the translated JSON array, no explanations
+
+Original JSON:
+{slide_json}
+
+Return only the translated JSON array:"""
+
+    try:
+        translated_text = await prompt_function_async(prompt)
+        translated_text = remove_outer_markdown(translated_text)
+        translated_data = json.loads(translated_text)
+        
+        # Validate structure
+        if len(slide_data) != len(translated_data):
+            print(f"[Slide {slide_index}] ERROR: Structure mismatch, using original")
+            return slide_data
+        
+        # Validate each shape's structure
+        for j in range(len(slide_data)):
+            if isinstance(slide_data[j], list) and isinstance(translated_data[j], list):
+                if len(slide_data[j]) != len(translated_data[j]):
+                    print(f"[Slide {slide_index}] Shape {j}: run count mismatch, using original")
+                    translated_data[j] = slide_data[j]
+        
+        print(f"[Slide {slide_index}] Translation completed successfully")
+        return translated_data
+        
+    except Exception as e:
+        print(f"[Slide {slide_index}] ERROR: {e}")
+        print(f"[Slide {slide_index}] Using original data")
+        return slide_data
+
+
+async def translate_slides_async(original_texts: List[List], prompt_function_async: Callable, target_language: str = "English"):
+    """Translate all slides asynchronously, one request per slide."""
+    print("\n" + "="*60)
+    print("STARTING ASYNC TRANSLATION")
+    print(f"Total slides: {len(original_texts)}")
+    print("="*60)
+    
+    # Create async tasks for all slides
+    tasks = [
+        translate_slide_async(slide_data, i, prompt_function_async, target_language)
+        for i, slide_data in enumerate(original_texts)
+    ]
+    
+    # Wait for all tasks to complete
+    print("\nWaiting for all translation requests to complete...")
+    translated_slides = await asyncio.gather(*tasks)
+    
+    print("\n" + "="*60)
+    print("ALL TRANSLATIONS COMPLETED")
+    print(f"Successfully translated {len(translated_slides)} slides")
+    print("="*60 + "\n")
+    
+    return translated_slides
 
 
 def translate_data_structure_of_texts_recursive(original_texts, prompt_function, target_language: str = "English"):
