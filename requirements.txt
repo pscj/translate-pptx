@@ -3,3 +3,4 @@ toolz
 Pillow
 requests
 python-pptx
+python-dotenv

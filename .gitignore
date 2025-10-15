@@ -6,3 +6,6 @@ Untitled*
 *__pycache__*
 *egg-info*
 deploy.bat
+.env
+.pptx
+.DS_Store
