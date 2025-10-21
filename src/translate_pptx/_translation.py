@@ -16,15 +16,27 @@ async def translate_slide_async(slide_data: List, slide_index: int, prompt_funct
     prompt = f"""Translate the following JSON array to {target_language}.
 
 CRITICAL REQUIREMENTS:
-1. You MUST preserve the EXACT JSON structure - same number of arrays, same nesting levels, SAME ORDER
-2. Translate ONLY the text content, NOT the structure
-3. DO NOT reorder, sort, or rearrange any elements - keep the EXACT same sequence
-4. The first string in the original MUST be the first string in the translation
-5. The last string in the original MUST be the last string in the translation
-6. Translate ALL text including company names, but keep English names/abbreviations unchanged (e.g., "PingAn", "MSH", "UHC", "Aon")
-7. PRESERVE ALL line breaks (\\n), spaces, and empty strings EXACTLY as they appear in the original
-8. If a string contains \\n (newline), the translated string MUST also contain \\n at the same positions
-9. Return ONLY the translated JSON array, no explanations
+1. Comprehensive Understanding Before Translation:
+FIRST, read and comprehend the ENTIRE JSON array's context and meaning. Understand the relationships between strings, especially within nested structures, to ensure accurate and contextually appropriate translations.
+THEN, perform a precise, sentence-by-sentence translation, ensuring the original intent, nuance, and technical terms are correctly rendered.
+2. Absolute Structural Integrity:
+You MUST preserve the EXACT JSON structure. This includes:
+The same number of arrays and objects.
+The same nesting levels.
+The EXACT SEQUENCE and ORDER of all elements. The first string in the original MUST remain the first in the translation, and the last MUST remain the last.
+DO NOT add, remove, reorder, sort, or rearrange any elements.
+3. Content Translation Policy:
+Translate ALL human-readable text content.
+Keep English proper nouns, abbreviations, and codes unchanged (e.g., "PingAn", "MSH", "UHC", "Aon", "GDPR").
+Establish terminology consistency across the entire document for repeated terms.
+4. Exact Formatting Preservation:
+PRESERVE ALL non-content characters EXACTLY as they appear. This includes:
+Line breaks (\n). If a string contains \n, the translation MUST contain \n in the identical position.
+Spaces, punctuation, and indentation.
+Empty strings ("").
+5. Output Instructions:
+Return ONLY the final, translated JSON array.
+Do not include any explanations, notes, or introductory text.
 
 Original JSON:
 {slide_json}

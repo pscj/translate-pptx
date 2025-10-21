@@ -248,8 +248,8 @@ def replace_text_in_slides(pptx_path: str, new_texts: List[List[List[str]]], out
                                 if original_size:
                                     new_run.font.size = Pt(get_english_font_size(original_size))
                                 else:
-                                    # Default to 11pt if no size found
-                                    new_run.font.size = Pt(11)
+                                    # Default: 24pt for titles, 11pt for normal text
+                                    new_run.font.size = Pt(24 if is_title else 14)
                             para_index += 1
         
         # Handle shapes with simple text attribute
