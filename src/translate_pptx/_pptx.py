@@ -40,8 +40,10 @@ def get_english_font_size(chinese_size_pt: float) -> float:
     else:
         return chinese_size_pt
 
-def extract_text_from_slides(pptx_path: str) -> List[List[List[str]]]:
-    """Extract text from a PowerPoint presentation file and return it as a list of lists of strings."""
+def extract_text_from_slides(pptx_path: str):
+    """Extract text from a PowerPoint presentation file and return it as a list of dicts.
+    Each dict maps shape_id to extracted text data.
+    """
     from pptx import Presentation
     from pptx.enum.shapes import MSO_SHAPE_TYPE
 
@@ -50,14 +52,13 @@ def extract_text_from_slides(pptx_path: str) -> List[List[List[str]]]:
         # Check if it's a chart type
         if shape.shape_type == MSO_SHAPE_TYPE.CHART:
             return True
-        # Check if it's a group (diagrams are often groups)
-        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
-            return True
         # Check if shape name suggests it's part of a chart/diagram
         if hasattr(shape, 'name'):
             name_lower = shape.name.lower()
             if any(keyword in name_lower for keyword in ['chart', 'diagram', 'smartart']):
                 return True
+        # DO NOT treat all GROUP shapes as charts - most groups are just grouped text boxes
+        # Only use RUN mode for actual charts/diagrams identified by name
         return False
 
     def extract_shape_text(shape, use_run_mode=False):
@@ -110,21 +111,31 @@ def extract_text_from_slides(pptx_path: str) -> List[List[List[str]]]:
     prs = Presentation(pptx_path)
     all_texts = []
 
-    for slide in prs.slides:
-        slide_texts = []
-        for shape in slide.shapes:
+    for slide_idx, slide in enumerate(prs.slides):
+        slide_data = {}  # Map shape_id to text data
+        for shape_idx, shape in enumerate(slide.shapes):
             # Use run mode for charts, paragraph mode for others
             use_run_mode = is_chart_shape(shape)
             extracted = extract_shape_text(shape, use_run_mode)
             if extracted is not None:
-                slide_texts.append(extracted)
-        all_texts.append(slide_texts)
+                shape_id = shape.shape_id
+                shape_name = shape.name if hasattr(shape, 'name') else 'Unknown'
+                shape_type = shape.shape_type
+                mode = "RUN" if use_run_mode else "PARAGRAPH"
+                print(f"[Extract] Slide {slide_idx}, Shape ID {shape_id} ({shape_name}, type={shape_type}): {mode} mode, extracted {len(extracted) if isinstance(extracted, list) else 1} items")
+                slide_data[shape_id] = {
+                    'text': extracted,
+                    'use_run_mode': use_run_mode
+                }
+        all_texts.append(slide_data)
 
     return all_texts
 
 
-def replace_text_in_slides(pptx_path: str, new_texts: List[List[List[str]]], output_path: str, target_language: str = "English"):
-    """Replace text in a PowerPoint presentation file with new text."""
+def replace_text_in_slides(pptx_path: str, new_texts, output_path: str, target_language: str = "English"):
+    """Replace text in a PowerPoint presentation file with new text.
+    new_texts is a list of dicts, where each dict maps shape_id to translated text data.
+    """
     from pptx import Presentation
     from pptx.enum.shapes import MSO_SHAPE_TYPE
     from pptx.enum.shapes import PP_PLACEHOLDER
@@ -147,14 +158,13 @@ def replace_text_in_slides(pptx_path: str, new_texts: List[List[List[str]]], out
         # Check if it's a chart type
         if shape.shape_type == MSO_SHAPE_TYPE.CHART:
             return True
-        # Check if it's a group (diagrams are often groups)
-        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
-            return True
         # Check if shape name suggests it's part of a chart/diagram
         if hasattr(shape, 'name'):
             name_lower = shape.name.lower()
             if any(keyword in name_lower for keyword in ['chart', 'diagram', 'smartart']):
                 return True
+        # DO NOT treat all GROUP shapes as charts - most groups are just grouped text boxes
+        # Only use RUN mode for actual charts/diagrams identified by name
         return False
 
     def replace_shape_text(shape, text_data, is_title=False, use_run_mode=False):
@@ -263,32 +273,21 @@ def replace_text_in_slides(pptx_path: str, new_texts: List[List[List[str]]], out
 
     prs = Presentation(pptx_path)
 
-    for slide, slide_texts in zip(prs.slides, new_texts):
-        shape_index = 0
+    for slide_idx, (slide, slide_data) in enumerate(zip(prs.slides, new_texts)):
         for shape in slide.shapes:
-            # Check if this shape has extractable text (same logic as extraction)
-            has_text = False
-            if shape.shape_type == MSO_SHAPE_TYPE.TABLE:
-                has_text = True
-            elif shape.shape_type == MSO_SHAPE_TYPE.GROUP:
-                has_text = True
-            elif hasattr(shape, "text_frame"):
-                # Check if there's any non-empty paragraph
-                for paragraph in shape.text_frame.paragraphs:
-                    para_text = ''.join([run.text for run in paragraph.runs])
-                    if para_text:
-                        has_text = True
-                        break
-            elif hasattr(shape, "text"):
-                if shape.text.strip():
-                    has_text = True
+            shape_id = shape.shape_id
             
-            # Only replace text in shapes that have text
-            if has_text and shape_index < len(slide_texts):
+            # Check if this shape has translated text
+            if shape_id in slide_data:
+                shape_info = slide_data[shape_id]
+                text_data = shape_info['text']
+                use_run_mode = shape_info['use_run_mode']
+                
                 is_title = is_title_shape(shape)
-                use_run_mode = is_chart_shape(shape)
-                replace_shape_text(shape, slide_texts[shape_index], is_title, use_run_mode)
-                shape_index += 1
+                shape_name = shape.name if hasattr(shape, 'name') else 'Unknown'
+                print(f"[Replace] Slide {slide_idx}, Shape ID {shape_id} ({shape_name}): {'RUN' if use_run_mode else 'PARAGRAPH'} mode, replacing {len(text_data) if isinstance(text_data, list) else 1} items")
+                
+                replace_shape_text(shape, text_data, is_title, use_run_mode)
 
     prs.save(output_path)
 
