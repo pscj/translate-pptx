@@ -10,7 +10,8 @@ def command_line_interface(argv=None):
 
     from ._pptx import extract_text_from_slides, replace_text_in_slides
     from ._translation import translate_slides_async
-    from ._endpoints import prompt_deepseek_async
+    from ._endpoints import prompt_deepseek_official_async as prompt_deepseek_async
+    # from ._endpoints import prompt_deepseek_async
 
     # Read config from terminal arguments
     if argv is None:

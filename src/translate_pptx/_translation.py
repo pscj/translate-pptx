@@ -16,59 +16,115 @@ async def translate_slide_async(slide_data: dict, slide_index: int, prompt_funct
     
     print(f"\n[Slide {slide_index}] Starting translation...")
     print(f"[Slide {slide_index}] Data structure: {len(slide_data)} shapes")
-    
-    prompt = f"""Act as a professional insurance and financial translator. Translate the following JSON array to {target_language}.
+#     prompt = f"""
+#     翻译以下文字为英文：在标普，我们始终关注您与家人的健康与安心。
+# 为更好地支持您生活中的每一份牵挂，我们正式推出 「员工自购保险计划」— 以专属团购价格与承保条件，助您轻松构筑个人与家庭的保障防线。
+# 即日起，扫码登录平台，了解详情并完成投保，为关心的TA多添一份安心。
+#     """
+    prompt = f"""
 
-🚨 CRITICAL RULES - FOLLOW EXACTLY:
+## Role
+You are a senior insurance and financial localization expert, specializing in Business-to-Business (B2B) communication and corporate presentation documents.
 
-Rule 1: MECHANICAL ONE-TO-ONE MAPPING
-- DO NOT understand context between strings
-- DO NOT reorganize content based on meaning
-- Translate EACH string INDEPENDENTLY as if it comes from a different document
-- String at position [0] → Translation at position [0]
-- String at position [1] → Translation at position [1]
-- And so on...
+## Task
+Accurately translate the provided JSON object into **{target_language}**.
 
-Rule 2: ABSOLUTE STRUCTURE PRESERVATION
-- Input has N strings → Output MUST have EXACTLY N strings
-- Same array depth, same nesting, EXACT same order
-- DO NOT merge, split, add, remove, or reorder ANY element
+## Technical Requirements
+
+### 1. Terminology & Precision
+- **Mandatory use of standard, industry-accepted insurance and financial terminology**
+- Translation must reflect professional-to-professional communication within the insurance sector
+
+### 2. Register & Tone
+- **Formal, professional, and concise** tone suitable for corporate presentations
+- Avoid colloquialisms and excessive marketing language
+- Focus on clarity and factual accuracy
+
+### 3. Target Audience
+- Insurance partners, corporate clients, or reinsurers
+- Peer-to-peer expert dialogue level
+
+### 4. Quality Assurance
+- Maintain absolute consistency in key terminology throughout
+- Ensure technical accuracy in insurance context
+
+     
+### 5. CRITICAL RULES - FOLLOW EXACTLY:
+
+Rule 1: PRESERVE JSON STRUCTURE EXACTLY
+- Input is a JSON object with keys (shape IDs) mapping to arrays of strings
+- Output MUST have EXACTLY the same keys
+- Each array MUST have EXACTLY the same length as the input array
+- DO NOT add, remove, or modify any keys
+
+Rule 2: MECHANICAL ONE-TO-ONE ARRAY TRANSLATION
+- For each key, translate its array element-by-element
+- Array[0] → Translated[0], Array[1] → Translated[1], etc.
+- DO NOT merge, split, reorder, add, or remove ANY array elements
+- If input array has N elements, output array MUST have EXACTLY N elements
+- DO NOT infer or add missing elements based on context
 
 Rule 3: ISOLATED TRANSLATION
-- Translate the LITERAL text of each string
+- Translate EACH string INDEPENDENTLY
 - DO NOT infer meaning from other strings
-- DO NOT adjust translation based on context
+- DO NOT reorganize content based on context
+- DO NOT add translations for elements that don't exist in the input
 - Treat each string as completely independent
 
 Rule 4: FORMATTING
 - Preserve line breaks (\\n), spaces, punctuation exactly
-- Keep proper nouns unchanged (PingAn, MSH, Aon)
+- Keep proper nouns unchanged (PingAn, MSH, Aon, etc.)
 
-Rule 5: OUTPUT
-- Return ONLY the JSON array, no explanations
+Rule 5: OUTPUT FORMAT
+- Return ONLY the JSON object, no explanations, no markdown code blocks
+- Use the EXACT same structure as the input
 
-EXAMPLE OF CORRECT BEHAVIOR:
-Input: [\"Apple\", \"Banana\", \"Cherry\"]
-Output: [\"苹果\", \"香蕉\", \"樱桃\"]
+EXAMPLE:
+Input: {{"1": ["Apple", "Banana"], "2": ["Cherry"]}}
+Output: {{"1": ["苹果", "香蕉"], "2": ["樱桃"]}}
 
-EXAMPLE OF WRONG BEHAVIOR (DO NOT DO THIS):
-Input: [\"Apple\", \"Banana\", \"Cherry\"]
-Output: [\"香蕉\", \"苹果\", \"樱桃\"]  ← WRONG! Order changed
-Output: [\"苹果和香蕉\", \"樱桃\"]  ← WRONG! Merged strings
+WRONG Examples (DO NOT DO THIS):
+{{"1": ["香蕉", "苹果"], "2": ["樱桃"]}}  ← WRONG! Order changed
+{{"1": ["苹果和香蕉"], "2": ["樱桃"]}}  ← WRONG! Merged elements
+{{"1": ["苹果", "香蕉"]}}  ← WRONG! Missing key "2"
+{{"1": ["苹果", "香蕉", "橙子"], "2": ["樱桃"]}}  ← WRONG! Added extra element
+
+Translate the following JSON object to {target_language}.
 
 Original JSON:
 {slide_json}
 
-Return only the translated JSON array:"""
+Return only the translated JSON object:"""
 
     try:
         translated_text = await prompt_function_async(prompt)
+        print(f"response {translated_text}")
+
+        # Save full response to debug file
+        debug_file = f"debug_slide_{slide_index}_response.json"
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write(translated_text)
+        print(f"[Slide {slide_index}] Full response saved to {debug_file}")
+        
+        print(f"[Slide {slide_index}] Raw response preview (first 500 chars):")
+        print(f"{translated_text[:500]}")
+        print(f"[Slide {slide_index}] Raw response preview (last 500 chars):")
+        print(f"{translated_text[-500:]}")
+        
         translated_text = remove_outer_markdown(translated_text)
         translated_arrays = json.loads(translated_text)
         
         # Validate structure - translated_arrays should be a dict with same keys
-        if not isinstance(translated_arrays, dict) or set(translated_arrays.keys()) != set(text_arrays.keys()):
-            print(f"[Slide {slide_index}] ERROR: Structure mismatch, using original")
+        if not isinstance(translated_arrays, dict):
+            print(f"[Slide {slide_index}] ERROR: Response is not a dict, type={type(translated_arrays)}, using original")
+            print(f"[Slide {slide_index}] Response preview: {str(translated_arrays)[:200]}")
+            return slide_data
+        
+        if set(translated_arrays.keys()) != set(text_arrays.keys()):
+            print(f"[Slide {slide_index}] ERROR: Keys mismatch")
+            print(f"[Slide {slide_index}]   Expected keys: {sorted(text_arrays.keys())}")
+            print(f"[Slide {slide_index}]   Received keys: {sorted(translated_arrays.keys())}")
+            print(f"[Slide {slide_index}] Using original data")
             return slide_data
         
         # Rebuild slide_data with translated text
@@ -80,7 +136,12 @@ Return only the translated JSON array:"""
             # Validate array length
             if isinstance(original_text, list) and isinstance(translated_text_array, list):
                 if len(original_text) != len(translated_text_array):
-                    print(f"[Slide {slide_index}] Shape ID {shape_id}: text count mismatch, using original")
+                    print(f"[Slide {slide_index}] ⚠️  WARNING: Shape ID {shape_id} text count mismatch")
+                    print(f"[Slide {slide_index}]   Expected: {len(original_text)} items")
+                    print(f"[Slide {slide_index}]   Received: {len(translated_text_array)} items")
+                    print(f"[Slide {slide_index}]   This shape will NOT be translated. Please re-run translation.")
+                    print(f"[Slide {slide_index}]   Tip: The AI may have added/removed elements. Check the prompt.")
+                    # Use original text to avoid misalignment
                     translated_text_array = original_text
             
             result[shape_id] = {

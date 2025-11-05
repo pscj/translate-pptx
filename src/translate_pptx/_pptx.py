@@ -178,35 +178,87 @@ def replace_text_in_slides(pptx_path: str, new_texts, output_path: str, target_l
                 for cell in row.cells:
                     if hasattr(cell, "text_frame"):
                         for paragraph in cell.text_frame.paragraphs:
-                            if para_index < len(text_data):
-                                # Get original paragraph text
-                                original_text = ''.join([run.text for run in paragraph.runs])
-                                if original_text:
-                                    translated = translate(original_text, text_data[para_index])
-                                    # Get original font size BEFORE clearing runs
-                                    original_size = None
-                                    if target_language.lower() == "english":
-                                        for run in paragraph.runs:
-                                            if run.font.size:
-                                                original_size = run.font.size.pt
-                                                break
-                                    
-                                    # Clear all runs to avoid format expansion
-                                    while paragraph.runs:
-                                        paragraph._element.remove(paragraph.runs[0]._r)
-                                    
-                                    # Add new run with translated text (no formatting)
-                                    new_run = paragraph.add_run()
-                                    new_run.text = translated
-                                    
-                                    # Adjust font size for English based on Chinese size
-                                    if target_language.lower() == "english":
-                                        if original_size:
-                                            new_run.font.size = Pt(get_english_font_size(original_size))
+                            # Get original paragraph text
+                            original_text = ''.join([run.text for run in paragraph.runs])
+                            # Only process non-empty paragraphs (matching extraction logic)
+                            if original_text and para_index < len(text_data):
+                                translated = translate(original_text, text_data[para_index])
+                                
+                                # Save original formatting from first run BEFORE clearing
+                                original_format = {}
+                                if paragraph.runs:
+                                    first_run = paragraph.runs[0]
+                                    original_format['size'] = first_run.font.size
+                                    original_format['bold'] = first_run.font.bold
+                                    original_format['italic'] = first_run.font.italic
+                                    original_format['underline'] = first_run.font.underline
+                                    original_format['name'] = first_run.font.name
+                                    # Save color (handle both RGB and theme colors)
+                                    try:
+                                        if first_run.font.color:
+                                            color_type = first_run.font.color.type
+                                            if color_type == 1:  # RGB color
+                                                original_format['color_type'] = 'rgb'
+                                                original_format['color_value'] = first_run.font.color.rgb
+                                                print(f"    [DEBUG] Saved RGB color: {first_run.font.color.rgb}")
+                                            elif color_type == 2:  # Theme color
+                                                original_format['color_type'] = 'theme'
+                                                original_format['color_value'] = first_run.font.color.theme_color
+                                                print(f"    [DEBUG] Saved theme color: {first_run.font.color.theme_color}")
+                                            else:
+                                                original_format['color_type'] = None
+                                                print(f"    [DEBUG] Unknown color type: {color_type}")
                                         else:
-                                            # Default to 11pt if no size found
-                                            new_run.font.size = Pt(11)
-                                    para_index += 1
+                                            original_format['color_type'] = None
+                                            print(f"    [DEBUG] No color")
+                                    except Exception as e:
+                                        original_format['color_type'] = None
+                                        print(f"    [DEBUG] Color save failed: {e}")
+                                
+                                # Clear all runs to avoid format expansion
+                                while paragraph.runs:
+                                    paragraph._element.remove(paragraph.runs[0]._r)
+                                
+                                # Add new run with translated text
+                                new_run = paragraph.add_run()
+                                new_run.text = translated
+                                
+                                # Restore formatting
+                                if original_format.get('bold') is not None:
+                                    new_run.font.bold = original_format['bold']
+                                if original_format.get('italic') is not None:
+                                    new_run.font.italic = original_format['italic']
+                                if original_format.get('underline') is not None:
+                                    new_run.font.underline = original_format['underline']
+                                
+                                # Restore color (handle both RGB and theme colors)
+                                if original_format.get('color_type') == 'rgb':
+                                    try:
+                                        new_run.font.color.rgb = original_format['color_value']
+                                        print(f"    [DEBUG] Restored RGB color: {original_format['color_value']}")
+                                    except Exception as e:
+                                        print(f"    [DEBUG] RGB color restore failed: {e}")
+                                elif original_format.get('color_type') == 'theme':
+                                    try:
+                                        new_run.font.color.theme_color = original_format['color_value']
+                                        print(f"    [DEBUG] Restored theme color: {original_format['color_value']}")
+                                    except Exception as e:
+                                        print(f"    [DEBUG] Theme color restore failed: {e}")
+                                
+                                if original_format.get('name'):
+                                    new_run.font.name = original_format['name']
+                                
+                                # Adjust font size for English
+                                if target_language.lower() == "english":
+                                    if original_format.get('size'):
+                                        new_run.font.size = Pt(get_english_font_size(original_format['size'].pt))
+                                    else:
+                                        # Default to 11pt if no size found
+                                        new_run.font.size = Pt(11)
+                                elif original_format.get('size'):
+                                    new_run.font.size = original_format['size']
+                                # Increment index only for non-empty paragraphs
+                                para_index += 1
         
         # Handle grouped shapes
         elif shape.shape_type == MSO_SHAPE_TYPE.GROUP:
@@ -232,35 +284,87 @@ def replace_text_in_slides(pptx_path: str, new_texts, output_path: str, target_l
             else:
                 # For normal text: replace by paragraph
                 for paragraph in shape.text_frame.paragraphs:
-                    if para_index < len(text_data):
-                        # Get original paragraph text
-                        original_text = ''.join([run.text for run in paragraph.runs])
-                        if original_text:
-                            translated = translate(original_text, text_data[para_index])
-                            # Get original font size BEFORE clearing runs
-                            original_size = None
-                            if target_language.lower() == "english":
-                                for run in paragraph.runs:
-                                    if run.font.size:
-                                        original_size = run.font.size.pt
-                                        break
-                            
-                            # Clear all runs to avoid format expansion
-                            while paragraph.runs:
-                                paragraph._element.remove(paragraph.runs[0]._r)
-                            
-                            # Add new run with translated text (no formatting)
-                            new_run = paragraph.add_run()
-                            new_run.text = translated
-                            
-                            # Adjust font size for English based on Chinese size
-                            if target_language.lower() == "english":
-                                if original_size:
-                                    new_run.font.size = Pt(get_english_font_size(original_size))
+                    # Get original paragraph text
+                    original_text = ''.join([run.text for run in paragraph.runs])
+                    # Only process non-empty paragraphs (matching extraction logic)
+                    if original_text and para_index < len(text_data):
+                        translated = translate(original_text, text_data[para_index])
+                        
+                        # Save original formatting from first run BEFORE clearing
+                        original_format = {}
+                        if paragraph.runs:
+                            first_run = paragraph.runs[0]
+                            original_format['size'] = first_run.font.size
+                            original_format['bold'] = first_run.font.bold
+                            original_format['italic'] = first_run.font.italic
+                            original_format['underline'] = first_run.font.underline
+                            original_format['name'] = first_run.font.name
+                            # Save color (handle both RGB and theme colors)
+                            try:
+                                if first_run.font.color:
+                                    color_type = first_run.font.color.type
+                                    if color_type == 1:  # RGB color
+                                        original_format['color_type'] = 'rgb'
+                                        original_format['color_value'] = first_run.font.color.rgb
+                                        print(f"    [DEBUG] Saved RGB color: {first_run.font.color.rgb}")
+                                    elif color_type == 2:  # Theme color
+                                        original_format['color_type'] = 'theme'
+                                        original_format['color_value'] = first_run.font.color.theme_color
+                                        print(f"    [DEBUG] Saved theme color: {first_run.font.color.theme_color}")
+                                    else:
+                                        original_format['color_type'] = None
+                                        print(f"    [DEBUG] Unknown color type: {color_type}")
                                 else:
-                                    # Default: 24pt for titles, 11pt for normal text
-                                    new_run.font.size = Pt(24 if is_title else 14)
-                            para_index += 1
+                                    original_format['color_type'] = None
+                                    print(f"    [DEBUG] No color")
+                            except Exception as e:
+                                original_format['color_type'] = None
+                                print(f"    [DEBUG] Color save failed: {e}")
+                        
+                        # Clear all runs to avoid format expansion
+                        while paragraph.runs:
+                            paragraph._element.remove(paragraph.runs[0]._r)
+                        
+                        # Add new run with translated text
+                        new_run = paragraph.add_run()
+                        new_run.text = translated
+                        
+                        # Restore formatting
+                        if original_format.get('bold') is not None:
+                            new_run.font.bold = original_format['bold']
+                        if original_format.get('italic') is not None:
+                            new_run.font.italic = original_format['italic']
+                        if original_format.get('underline') is not None:
+                            new_run.font.underline = original_format['underline']
+                        
+                        # Restore color (handle both RGB and theme colors)
+                        if original_format.get('color_type') == 'rgb':
+                            try:
+                                new_run.font.color.rgb = original_format['color_value']
+                                print(f"    [DEBUG] Restored RGB color: {original_format['color_value']}")
+                            except Exception as e:
+                                print(f"    [DEBUG] RGB color restore failed: {e}")
+                        elif original_format.get('color_type') == 'theme':
+                            try:
+                                new_run.font.color.theme_color = original_format['color_value']
+                                print(f"    [DEBUG] Restored theme color: {original_format['color_value']}")
+                            except Exception as e:
+                                print(f"    [DEBUG] Theme color restore failed: {e}")
+                        
+                        if original_format.get('name'):
+                            new_run.font.name = original_format['name']
+                        
+                        # Adjust font size for English
+                        if target_language.lower() == "english":
+                            if original_format.get('size'):
+                                new_run.font.size = Pt(get_english_font_size(original_format['size'].pt))
+                            else:
+                                # Default: 24pt for titles, 11pt for normal text
+                                new_run.font.size = Pt(24 if is_title else 14)
+                        elif original_format.get('size'):
+                            new_run.font.size = original_format['size']
+                        # Increment index only for non-empty paragraphs
+                        para_index += 1
         
         # Handle shapes with simple text attribute
         elif hasattr(shape, "text"):
